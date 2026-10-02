@@ -1,0 +1,537 @@
+openapi: 3.0.3
+info:
+  title: Expense API
+  version: 0.1.0
+  description: Shared household expenses, budgets and reports for a two-person household.
+servers:
+  - url: /
+components:
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: /oauth2/authorize
+          tokenUrl: /oauth2/token
+          scopes:
+            household:create: Create a new household
+            household:invite: Invite a partner by email
+            household:join: Accept an invite and join a household
+            expenses:log: Log a new expense
+            expenses:edit: Edit or delete any expense in the household
+            expenses:read: The household's expenses
+            categories:manage: Add, rename or remove a category
+            categories:read: The household's categories
+            budgets:manage: Set, edit or remove a category's monthly budget
+            budgets:read: The household's budgets and spend against them
+            reports:read: The household's spending reports
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: integer, description: HTTP or application error code }
+        message: { type: string, description: short human-readable label }
+        description: { type: string, description: detailed explanation }
+        moreInfo: { type: string, description: URI to documentation }
+    Household:
+      type: object
+      required: [id, status, currency]
+      properties:
+        id: { type: string }
+        status: { type: string, enum: [pending, active], description: pending until the partner accepts }
+        currency: { type: string, description: the household's single currency }
+        createdAt: { type: string, format: date-time }
+    HouseholdInvite:
+      type: object
+      required: [email]
+      properties:
+        email: { type: string, format: email, description: the partner's email address }
+    Category:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name: { type: string }
+    CategoryInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+    Expense:
+      type: object
+      required: [id, amountCents, expenseDate, categoryId, paidByMemberId]
+      properties:
+        id: { type: string }
+        amountCents: { type: integer, description: amount in cents }
+        expenseDate: { type: string, format: date }
+        categoryId: { type: string }
+        note: { type: string }
+        loggedByMemberId: { type: string }
+        paidByMemberId: { type: string }
+    ExpenseInput:
+      type: object
+      required: [amountCents, expenseDate, categoryId, paidByMemberId]
+      properties:
+        amountCents: { type: integer }
+        expenseDate: { type: string, format: date }
+        categoryId: { type: string }
+        note: { type: string }
+        paidByMemberId: { type: string }
+    Budget:
+      type: object
+      required: [categoryId, monthlyLimitCents]
+      properties:
+        categoryId: { type: string }
+        monthlyLimitCents: { type: integer }
+        spentCents: { type: integer, description: spend so far this month in this category }
+        overBudget: { type: boolean, description: whether spend exceeds the monthly limit }
+    BudgetInput:
+      type: object
+      required: [categoryId, monthlyLimitCents]
+      properties:
+        categoryId: { type: string }
+        monthlyLimitCents: { type: integer }
+    Report:
+      type: object
+      properties:
+        period: { type: string, enum: [this-month, last-month, this-year] }
+        byCategory:
+          type: array
+          items:
+            type: object
+            properties:
+              categoryId: { type: string }
+              spentCents: { type: integer }
+              budgetCents: { type: integer, nullable: true }
+        byMonth:
+          type: array
+          items:
+            type: object
+            properties:
+              month: { type: string, description: "YYYY-MM" }
+              spentCents: { type: integer }
+        byPaidBy:
+          type: array
+          items:
+            type: object
+            properties:
+              memberId: { type: string }
+              spentCents: { type: integer }
+security:
+  - oauth2: []
+paths:
+  /me/household:
+    post:
+      operationId: createHousehold
+      summary: Create a new household for the caller
+      security:
+        - oauth2: [household:create]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Household' }
+      responses:
+        '201':
+          description: Household created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Household' }
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /me/household/invites:
+    post:
+      operationId: invitePartner
+      summary: Invite a partner to the caller's household by email
+      security:
+        - oauth2: [household:invite]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/HouseholdInvite' }
+      responses:
+        '201':
+          description: Invite sent
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /household-invites/{token}/accept:
+    post:
+      operationId: acceptHouseholdInvite
+      summary: Accept an invite and join the household
+      security:
+        - oauth2: [household:join]
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Household joined; now active
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Household' }
+        '404':
+          description: Invite not found or expired
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /me/household/expenses:
+    get:
+      operationId: listExpenses
+      summary: The household's expenses
+      security:
+        - oauth2: [expenses:read]
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20, maximum: 100 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
+      responses:
+        '200':
+          description: A page of expenses
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [count, data]
+                properties:
+                  count: { type: integer }
+                  next: { type: string, nullable: true }
+                  previous: { type: string, nullable: true }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Expense' }
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    post:
+      operationId: logExpense
+      summary: Log a new expense for the household
+      security:
+        - oauth2: [expenses:log]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ExpenseInput' }
+      responses:
+        '201':
+          description: Expense logged
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Expense' }
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /me/household/expenses/{expenseId}:
+    put:
+      operationId: editExpense
+      summary: Edit any expense in the household
+      security:
+        - oauth2: [expenses:edit]
+      parameters:
+        - name: expenseId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ExpenseInput' }
+      responses:
+        '200':
+          description: Expense updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Expense' }
+        '404':
+          description: Expense not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    delete:
+      operationId: deleteExpense
+      summary: Delete any expense in the household
+      security:
+        - oauth2: [expenses:edit]
+      parameters:
+        - name: expenseId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '204':
+          description: Expense deleted
+        '404':
+          description: Expense not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /me/household/categories:
+    get:
+      operationId: listCategories
+      summary: The household's categories
+      security:
+        - oauth2: [categories:read]
+      responses:
+        '200':
+          description: The household's categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Category' }
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    post:
+      operationId: addCategory
+      summary: Add a category to the household's list
+      security:
+        - oauth2: [categories:manage]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CategoryInput' }
+      responses:
+        '201':
+          description: Category added
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Category' }
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /me/household/categories/{categoryId}:
+    put:
+      operationId: renameCategory
+      summary: Rename a category
+      security:
+        - oauth2: [categories:manage]
+      parameters:
+        - name: categoryId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CategoryInput' }
+      responses:
+        '200':
+          description: Category renamed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Category' }
+        '404':
+          description: Category not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    delete:
+      operationId: removeCategory
+      summary: Remove a category from the household's list
+      security:
+        - oauth2: [categories:manage]
+      parameters:
+        - name: categoryId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '204':
+          description: Category removed
+        '404':
+          description: Category not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /me/household/budgets:
+    get:
+      operationId: listBudgets
+      summary: The household's budgets and spend against them
+      security:
+        - oauth2: [budgets:read]
+      responses:
+        '200':
+          description: The household's budgets
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Budget' }
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    post:
+      operationId: setBudget
+      summary: Set a category's monthly budget
+      security:
+        - oauth2: [budgets:manage]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BudgetInput' }
+      responses:
+        '201':
+          description: Budget set
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Budget' }
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /me/household/budgets/{categoryId}:
+    put:
+      operationId: editBudget
+      summary: Edit a category's monthly budget
+      security:
+        - oauth2: [budgets:manage]
+      parameters:
+        - name: categoryId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BudgetInput' }
+      responses:
+        '200':
+          description: Budget updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Budget' }
+        '404':
+          description: Budget not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    delete:
+      operationId: removeBudget
+      summary: Remove a category's monthly budget
+      security:
+        - oauth2: [budgets:manage]
+      parameters:
+        - name: categoryId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '204':
+          description: Budget removed
+        '404':
+          description: Budget not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /me/household/reports:
+    get:
+      operationId: getReport
+      summary: The household's spending report for a fixed period
+      security:
+        - oauth2: [reports:read]
+      parameters:
+        - name: period
+          in: query
+          required: true
+          schema: { type: string, enum: [this-month, last-month, this-year] }
+      responses:
+        '200':
+          description: Spending by category, by month and by who paid, for the period
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Report' }
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }

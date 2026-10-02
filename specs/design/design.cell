@@ -1,0 +1,26 @@
+title Personal Expenses Tracking
+
+component expense-webapp as "Expense Tracker" web-application
+component expense-api as "Expense API" service
+component categorizer-agent as "Category Suggestion Agent" ai-agent
+component expense-db as "Expense Database" database
+component memory-db as "Agent Memory" database
+
+east user-auth as "Thunder Auth" identity-server
+south email-service as "Email Service" service
+
+north -> expense-webapp
+north -> expense-api
+north -> categorizer-agent
+
+expense-webapp -> expense-api
+expense-webapp -> categorizer-agent
+expense-webapp -> user-auth
+
+expense-api -> user-auth
+expense-api -> expense-db
+expense-api -> email-service
+
+categorizer-agent -> user-auth
+categorizer-agent -> expense-api
+categorizer-agent -> memory-db

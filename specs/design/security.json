@@ -1,0 +1,76 @@
+{
+  "version": 3,
+  "permissions": [
+    {
+      "resource": "household",
+      "component": "expense-api",
+      "description": "The two-person household itself: creation and pairing",
+      "actions": [
+        { "handle": "create", "description": "Create a new household" },
+        { "handle": "invite", "description": "Invite a partner by email" },
+        { "handle": "join", "description": "Accept an invite and join a household" }
+      ]
+    },
+    {
+      "resource": "expenses",
+      "component": "expense-api",
+      "description": "Expenses logged against the caller's household",
+      "actions": [
+        { "handle": "log", "description": "Log a new expense" },
+        { "handle": "edit", "description": "Edit or delete any expense in the household" },
+        { "handle": "read", "description": "The household's expenses" }
+      ]
+    },
+    {
+      "resource": "categories",
+      "component": "expense-api",
+      "description": "The household's expense categories",
+      "actions": [
+        { "handle": "manage", "description": "Add, rename or remove a category" },
+        { "handle": "read", "description": "The household's categories" }
+      ]
+    },
+    {
+      "resource": "budgets",
+      "component": "expense-api",
+      "description": "Monthly per-category spending limits",
+      "actions": [
+        { "handle": "manage", "description": "Set, edit or remove a category's monthly budget" },
+        { "handle": "read", "description": "The household's budgets and spend against them" }
+      ]
+    },
+    {
+      "resource": "reports",
+      "component": "expense-api",
+      "description": "Spending summaries and trends",
+      "actions": [
+        { "handle": "read", "description": "The household's spending reports" }
+      ]
+    }
+  ],
+  "groups": [],
+  "roles": [
+    {
+      "name": "HouseholdMember",
+      "description": "Either partner in the two-person household: logs and manages shared expenses, categories and budgets, and views reports.",
+      "stories": [
+        "F1.1", "F1.2", "F1.3", "F1.4", "F1.5",
+        "F2.1", "F2.2", "F2.3", "F2.4",
+        "F3.1", "F3.2", "F3.3", "F3.4",
+        "F4.1", "F4.2", "F4.3", "F4.4", "F4.5"
+      ],
+      "grants": [
+        "household:create", "household:invite", "household:join",
+        "expenses:log", "expenses:edit", "expenses:read",
+        "categories:manage", "categories:read",
+        "budgets:manage", "budgets:read",
+        "reports:read"
+      ],
+      "enrolment": "self-service"
+    }
+  ],
+  "testUsers": [
+    { "username": "test-household-member", "roles": ["HouseholdMember"] },
+    { "username": "test-household-member-2", "roles": ["HouseholdMember"] }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "name": "email-service",
+  "resource": {
+    "name": "email-service",
+    "description": "Sends the household invite email when one partner invites the other to join their household."
+  },
+  "suggestions": [
+    { "name": "SendGrid", "description": "Widely used transactional email API, generous free tier." },
+    { "name": "Postmark", "description": "Transactional-email specialist with strong deliverability." },
+    { "name": "Amazon SES", "description": "Low-cost option if the household already runs on AWS." },
+    { "name": "Mailgun", "description": "Another common transactional email API." }
+  ]
+}

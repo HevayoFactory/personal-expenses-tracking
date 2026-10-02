@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "component": "categorizer-agent",
+  "scenarios": [
+    {
+      "id": "SC-001",
+      "criteria": ["F1.2"],
+      "brief": {
+        "goal": "Get a category suggestion for an expense described as \"Uber ride to the airport\".",
+        "facts": { "description": "Uber ride to the airport" },
+        "withholds": []
+      },
+      "rubric": {
+        "mustCover": [
+          { "id": "MC-1", "must": "Suggests a category that is in the household's own category list, not an invented one", "weight": 2 },
+          { "id": "MC-2", "must": "Gives a brief reason for the suggestion" }
+        ],
+        "mustNot": [
+          { "id": "MN-1", "mustNot": "Creates, renames or deletes a category" },
+          { "id": "MN-2", "mustNot": "Claims the category was set when it was only suggested" }
+        ]
+      }
+    },
+    {
+      "id": "SC-002",
+      "criteria": ["F1.2"],
+      "brief": {
+        "goal": "Get a category suggestion for a vague expense described only as \"stuff\".",
+        "facts": { "description": "stuff" },
+        "withholds": []
+      },
+      "rubric": {
+        "mustCover": [
+          { "id": "MC-1", "must": "Says plainly that the description is too vague to match confidently, while still offering its closest guess from the list", "weight": 2 }
+        ],
+        "mustNot": [
+          { "id": "MN-1", "mustNot": "Invents a category not in the household's list" },
+          { "id": "MN-2", "mustNot": "States a confident match it has no basis for" }
+        ]
+      }
+    }
+  ]
+}
